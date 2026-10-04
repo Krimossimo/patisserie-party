@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { db } from './firebase';
 import { collection, addDoc, getDocs } from 'firebase/firestore';
+import * as XLSX from 'xlsx';
 
 const PATISSERIES = [
   "ROYAULTY", "ROSE ET VERT", "VIRGIN MOJITO", "FORET NOIR", 
@@ -58,6 +59,42 @@ export default function App() {
     return (total / prixValides.length).toFixed(2);
   };
 
+  const exporterExcel = () => {
+    // 1. Préparer les données brutes
+    const donneesBrutes = [];
+    results.forEach((reponse, index) => {
+      PATISSERIES.forEach(p => {
+        if (reponse[p] && (reponse[p].esthetique || reponse[p].gout || reponse[p].prix)) {
+          donneesBrutes.push({
+            "Invité": `Invité ${index + 1}`,
+            "Pâtisserie": p,
+            "Esthétique": reponse[p].esthetique,
+            "Goût": reponse[p].gout,
+            "Prix Estimé (€)": parseFloat(reponse[p].prix) || 0
+          });
+        }
+      });
+    });
+
+    // 2. Préparer les moyennes
+    const donneesMoyennes = PATISSERIES.map(p => ({
+      "Pâtisserie": p,
+      "Prix Moyen Estimé (€)": parseFloat(calculerMoyenne(p))
+    }));
+
+    // 3. Créer le fichier Excel avec deux onglets
+    const wb = XLSX.utils.book_new();
+    
+    const wsMoyennes = XLSX.utils.json_to_sheet(donneesMoyennes);
+    XLSX.utils.book_append_sheet(wb, wsMoyennes, "Moyennes des Prix");
+
+    const wsBrutes = XLSX.utils.json_to_sheet(donneesBrutes);
+    XLSX.utils.book_append_sheet(wb, wsBrutes, "Données Brutes");
+
+    // 4. Lancer le téléchargement
+    XLSX.writeFile(wb, "Retours_Degustation_Patisseries.xlsx");
+  };
+
   if (view === 'success') {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center bg-white/90 backdrop-blur-sm">
@@ -70,11 +107,24 @@ export default function App() {
     );
   }
 
-  if (view === 'admin') {
+if (view === 'admin') {
     return (
       <div className="min-h-screen p-4 sm:p-8 bg-white/95 backdrop-blur-sm">
-        <button onClick={() => setView('form')} className="mb-6 text-gray-500 underline font-bold">← Retour</button>
+        <div className="flex justify-between items-center mb-6">
+          <button onClick={() => setView('form')} className="text-gray-500 underline font-bold">
+            ← Retour
+          </button>
+          
+          <button 
+            onClick={exporterExcel} 
+            className="px-4 py-2 bg-[#b96b6b] text-white rounded-lg font-bold shadow-md hover:bg-[#9c5959] transition-colors"
+          >
+            📥 Télécharger le tableau Excel
+          </button>
+        </div>
+        
         <h1 className="text-2xl sm:text-3xl font-bold text-[#ac6362] mb-8">Résultats des estimations</h1>
+        
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
           {PATISSERIES.map(p => (
             <div key={p} className="bg-white p-6 rounded-2xl shadow-sm border border-[#e8c9c7]">
